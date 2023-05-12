@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Whisper ASR API Demo</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel">
+      const Chatbot = () => {
+        const [showModal, setShowModal] = React.useState(false);
+        const [loading, setLoading] = React.useState(false);
+        const [toastMessage, setToastMessage] = React.useState(
+          "Message copied successfully!"
+        );
+        const [toastVisible, setToastVisible] = React.useState(false);
+        const [inputValue, setInputValue] = React.useState("");
+        const [error, setError] = React.useState(null);
+        const chatHistoryRef = React.useRef(null);
+        const [chatHistory, setChatHistory] = React.useState([]);
+        const [apiKey, setApiKey] = React.useState("");
+        const [currentFile, setCurrentFile] = React.useState("");
+
+        const handleApiKeySubmit = () => {
+          const encryptedApiKey = CryptoJS.AES.encrypt(
+            apiKey,
+            "your-secret-key"
+          ).toString();
+          localStorage.setItem("o_a_k", encryptedApiKey);
+          setShowModal(false);
+        };
+
+        React.useEffect(() => {
+          const storedApiKey = localStorage.getItem("o_a_k");
+          if (storedApiKey) {
+            const decryptedApiKey = CryptoJS.AES.decrypt(
+              storedApiKey,
+              "your-secret-key"
+            ).toString(CryptoJS.enc.Utf8);
+            setApiKey(decryptedApiKey);
+            setShowModal(false);
+          } else {
+            setShowModal(true);
+          }
+        }, []);
+
+        const copyAllMessages = () => {
+          const allMessages = chatHistory
+            .map((message) => message.content)
+            .join("\n");
+          navigator.clipboard.writeText(allMessages).then(() => {
+            showToast("All Messages copied successfully!");
+          });
+        };
+
+        const handleApiKeyChange = (event) => {
+          setApiKey(event.target.value);
+        };
+
+        const showToast = (msg) => {
+          setToastMessage(msg);
+          setToastVisible(true);
+          setTimeout(() => {
+            setToastVisible(false);
+          }, 2000);
+        };
+
+        const handleFileChange = async (e) => {
+          setLoading(true);
+          const files = Array.from(e.target.files);
+          const filePaths = files.map((file) => URL.createObjectURL(file));
+
+          console.log("File paths:", filePaths);
+
+          const processFile = async (index) => {
+            if (index >= files.length) {
+              setLoading(false);
+              setCurrentFile("");
+              return;
+            }
+
+            const file = files[index];
+            const fileName = file.name.replace(/\.[^/.]+$/, "");
+            setCurrentFile(fileName);
+            const formData = new FormData();
+            formData.append("model", "whisper-1");
+            formData.append("file", file);
+
+            try {
+              const response = await fetch(
+                "https://api.openai.com/v1/audio/transcriptions",
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                  },
+                  body: formData,
+                }
+              );
+
+              const data = await response.json();
+              console.log(data);
+
+              // Functional state update
+              setChatHistory((prevChatHistory) => [
+                ...prevChatHistory,
+                {
+                  role: `assistant`,
+                  content: `Answer of ${fileName}: ${data.text}`,
+                },
+              ]);
+
+              processFile(index + 1);
+            } catch (error) {
+              setLoading(false);
+              setError("Error during transcription. Please try again later.");
+              console.error("Error:", error);
+            }
+          };
+
+          processFile(0);
+        };
+
+        React.useEffect(() => {
+          chatHistoryRef.current.scrollTop =
+            chatHistoryRef.current.scrollHeight;
+
+          console.log("chatHistory updated:", chatHistory);
+        }, [chatHistory]);
+
+        const copyToClipboard = (text) => {
+          navigator.clipboard.writeText(text).then(
+            () => {
+              console.log("Copied to clipboard:", text);
+              showToast("Message copied successfully!");
+            },
+            (err) => {
+              console.error("Error copying to clipboard:", err);
+            }
+          );
+        };
+
+        return (
+          <div className="chatbot">
+            {toastVisible && <div className="toast">{toastMessage}</div>}
+
+            {showModal && (
+              <div className="modal-overlay">
+                <div className="modal">
+                  <label>
+                    OpenAI API Key:
+                    <input
+                      type="password"
+                      value={apiKey}
+                      onChange={handleApiKeyChange}
+                    />
+                  </label>
+                  <button
+                    className="btn-submit-api-key"
+                    onClick={handleApiKeySubmit}
+                  >
+                    Submit API Key
+                  </button>
+
+                  <p>Your API key will be loosely encrypted and kept in local storage. Make sure that you run this application only in your own device.</p>
+                </div>
+              </div>
+            )}
+
+            <h2>Speech to Text engine using openai</h2>
+
+            <div className="chat-history" ref={chatHistoryRef}>
+              {chatHistory.map((message, index) => (
+                <div
+                  key={index}
+                  className={`message-container message-${message.role}`}
+                >
+                  <pre>{message.content}</pre>
+                  <button
+                    className="copy-btn"
+                    onClick={() => copyToClipboard(message.content)}
+                  >
+                    <span className="copy-icon"></span>
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="chat-input">
+              <div className="buttons-container">
+                <div>
+                  <input
+                    type="file"
+                    accept="audio/*,video/*"
+                    onChange={handleFileChange}
+                    multiple
+                  />
+                </div>
+              </div>
+
+              <div id="loading-container">
+                {loading && (
+                  <div className="loading-animation">
+                    <div className="ball"></div>
+                    <div className="ball"></div>
+                    <div className="ball"></div>
+                  </div>
+                )}
+              </div>
+
+              <div id="currently-transcribing">
+                {currentFile && <p>Transcribing: {currentFile}</p>}
+              </div>
+
+              <div className="user-action">
+                {chatHistory.length > 1 && (
+                  <button className="copy-all-btn" onClick={copyAllMessages}>
+                    Copy All
+                  </button>
+                )}
+              </div>
+
+              {error && <div className="error">{error}</div>}
+            </div>
+          </div>
+        );
+      };
+
+      ReactDOM.render(<Chatbot />, document.getElementById("root"));
+    </script>
+  </body>
+</html>
