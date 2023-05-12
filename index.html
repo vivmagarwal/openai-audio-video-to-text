@@ -9,7 +9,6 @@
     <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-    <script src="https://unpkg.com/crypto-js@3.1.9-1/crypto-js.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   </head>
   <body>
@@ -30,22 +29,14 @@
         const [currentFile, setCurrentFile] = React.useState("");
 
         const handleApiKeySubmit = () => {
-          const encryptedApiKey = CryptoJS.AES.encrypt(
-            apiKey,
-            "your-secret-key"
-          ).toString();
-          localStorage.setItem("o_a_k", encryptedApiKey);
+          localStorage.setItem("o_a_k", apiKey);
           setShowModal(false);
         };
 
         React.useEffect(() => {
           const storedApiKey = localStorage.getItem("o_a_k");
           if (storedApiKey) {
-            const decryptedApiKey = CryptoJS.AES.decrypt(
-              storedApiKey,
-              "your-secret-key"
-            ).toString(CryptoJS.enc.Utf8);
-            setApiKey(decryptedApiKey);
+            setApiKey(storedApiKey);
             setShowModal(false);
           } else {
             setShowModal(true);
@@ -170,7 +161,12 @@
                     Submit API Key
                   </button>
 
-                  <p>Your API key will be loosely encrypted and kept in local storage. Make sure that you run this application only in your own device.</p>
+                  <p>
+                    Your API key will be stored in the local storage of your browswer. Make sure that
+                    you run this application only in your own device. Storing
+                    API key in local storage has security implications. Continue
+                    only if you understand the risks involved.
+                  </p>
                 </div>
               </div>
             )}
