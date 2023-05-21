@@ -84,6 +84,7 @@
             const formData = new FormData();
             formData.append("model", "whisper-1");
             formData.append("file", file);
+            formData.append("language", "English");
 
             try {
               const response = await fetch(
